@@ -41,3 +41,14 @@ CREATE TABLE IF NOT EXISTS time_entries (
   duration_seconds INT NOT NULL DEFAULT 0,
   CONSTRAINT fk_time_entries_task_id FOREIGN KEY (task_id) REFERENCES tasks (id)
 );
+
+CREATE TABLE IF NOT EXISTS prompt_history (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  prompt_type ENUM('setup', 'execution') NOT NULL,
+  sections_json TEXT NOT NULL,
+  translated TEXT NOT NULL,
+  compressed TEXT NOT NULL,
+  compression_ratio FLOAT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);

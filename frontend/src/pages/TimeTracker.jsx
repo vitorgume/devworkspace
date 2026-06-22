@@ -16,11 +16,13 @@ function formatMMSS(totalSeconds) {
   return `${mm}:${ss}`
 }
 
-function formatHM(totalSeconds) {
+function formatHMS(totalSeconds) {
   const s = Math.max(0, Math.floor(totalSeconds))
   const h = Math.floor(s / 3600)
   const m = Math.floor((s % 3600) / 60)
-  return `${h} h ${m} min`
+  const sec = s % 60
+  if (h === 0 && m === 0) return `${sec} s`
+  return sec ? `${h} h ${m} min ${sec} s` : `${h} h ${m} min`
 }
 
 function todayStartMs() {
@@ -180,7 +182,7 @@ export default function TimeTracker() {
                 <tr key={t.task_id}>
                   <td className="td">{t.task_name}</td>
                   <td className="td">{Number(t.estimated_hours || 0).toFixed(2)} h</td>
-                  <td className="td">{formatHM(workedToday)}</td>
+                  <td className="td">{formatHMS(workedToday)}</td>
                   <td className="td mono">{active ? formatMMSS(t.live_active_seconds) : '00:00'}</td>
                   <td className="td">
                     {active ? (
@@ -210,7 +212,7 @@ export default function TimeTracker() {
       <div className="card">
         <div className="row" style={{ justifyContent: 'space-between' }}>
           <div style={{ color: 'var(--muted)' }}>
-            Estimated: {computed.totalEstimatedHours.toFixed(2)} h | Worked: {formatHM(computed.totalWorkedSeconds)} | Remaining: {formatHM(computed.remainingSeconds)}
+            Estimated: {computed.totalEstimatedHours.toFixed(2)} h | Worked: {formatHMS(computed.totalWorkedSeconds)} | Remaining: {formatHMS(computed.remainingSeconds)}
           </div>
         </div>
         <div style={{ marginTop: 10 }} className="progressWrap">

@@ -10,7 +10,6 @@ fi
 trap "kill 0" SIGINT SIGTERM
 
 uvicorn backend.main:app --reload --port 8000 &
-uvicorn mcp_server.server:app --reload --port 8001 &
 
 if command -v npm >/dev/null 2>&1; then
   npm --prefix frontend run dev -- --port 5173 --strictPort &

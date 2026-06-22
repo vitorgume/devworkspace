@@ -1,3 +1,4 @@
+import os
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
@@ -57,6 +58,8 @@ def start_timer(payload: TimeEntryStartRequest):
 
 @router.post("/pause", response_model=TimeEntry)
 def pause_timer(payload: TimeEntryPauseRequest):
+    if os.getenv("DEVWORKSPACE_DEBUG") == "1":
+        print(f"[timetracker] pause hit entry_id={payload.entry_id}")
     conn = get_connection()
     cursor = conn.cursor(dictionary=True)
     try:
@@ -78,6 +81,8 @@ def pause_timer(payload: TimeEntryPauseRequest):
             (payload.entry_id,),
         )
         conn.commit()
+        if os.getenv("DEVWORKSPACE_DEBUG") == "1":
+            print(f"[timetracker] pause updated rows={cursor.rowcount}")
 
         cursor.execute(
             "SELECT id, task_id, started_at, paused_at, duration_seconds "

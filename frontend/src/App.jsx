@@ -1,3 +1,4 @@
+import PromptHistory from './pages/PromptHistory'
 import PromptWorkshop from './pages/PromptWorkshop'
 import TaskEstimation from './pages/TaskEstimation'
 import TimeTracker from './pages/TimeTracker'
@@ -12,6 +13,9 @@ function App() {
           <NavLink className={({ isActive }) => (isActive ? 'navItem navItemActive' : 'navItem')} to="/prompts">
             🧠 Prompt Workshop
           </NavLink>
+          <NavLink className={({ isActive }) => (isActive ? 'navItem navItemActive' : 'navItem')} to="/history">
+            📜 Prompt History
+          </NavLink>
           <NavLink className={({ isActive }) => (isActive ? 'navItem navItemActive' : 'navItem')} to="/tasks">
             📋 Task Estimation
           </NavLink>
@@ -25,6 +29,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/prompts" replace />} />
           <Route path="/prompts" element={<PromptWorkshop />} />
+          <Route path="/history" element={<PromptHistory />} />
           <Route path="/tasks" element={<TaskEstimation />} />
           <Route path="/tracker" element={<TimeTracker />} />
           <Route path="*" element={<Navigate to="/prompts" replace />} />

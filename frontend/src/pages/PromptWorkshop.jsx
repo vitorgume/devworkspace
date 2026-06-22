@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -9,10 +10,31 @@ async function apiFetch(path, options) {
   return res.json()
 }
 
-const SETUP_SECTIONS = ['Context', 'Current State', 'Goal', 'Constraints', 'Next Steps']
-const EXEC_SECTIONS = ['Task', 'Detailed Steps', 'File Targets', 'Constraints', 'Expected Output']
+const SETUP_SECTIONS = ['Atue como', 'Projeto', 'Task Geral', 'Ação Imediata']
+const EXEC_SECTIONS = [
+  'Atue como',
+  'Projeto',
+  'Contexto Base',
+  'Objetivo',
+  'Regras de Negócio',
+  'Restrições',
+  'Output',
+]
+
+const PLACEHOLDERS = {
+  'Atue como': 'Ex: Você é um agente de software senior focado em FastAPI + React',
+  Projeto: 'Ex: DevWorkspace',
+  'Task Geral': 'Ex: Criar módulo de estimativas e time tracker',
+  'Ação Imediata': 'Ex: Leia o contexto e confirme entendimento; não codifique ainda',
+  'Contexto Base': 'Ex: Referencie arquivos e trechos relevantes (paths, funções, classes)',
+  Objetivo: 'Ex: Implementar endpoints + UI conforme especificação',
+  'Regras de Negócio': 'Ex: Cálculo PERT, arredondar horas para cima, margens por complexidade',
+  Restrições: 'Ex: Sem framework UI, manter simples, sem websocket',
+  Output: 'Ex: Código final + endpoints + instruções de execução',
+}
 
 export default function PromptWorkshop() {
+  const navigate = useNavigate()
   const [promptType, setPromptType] = useState('setup')
   const [title, setTitle] = useState('')
   const [values, setValues] = useState({})
@@ -43,6 +65,7 @@ export default function PromptWorkshop() {
         type: 'ok',
         text: `✓ Prompt pushed to MCP — ready for Trae`,
         meta: `Compressed from ${originalChars} to ${compressedChars} chars (${reductionPct}% reduction)`,
+        showHistoryLink: true,
       })
     } catch (e) {
       setBanner({ type: 'err', text: e.message })
@@ -67,6 +90,13 @@ export default function PromptWorkshop() {
         <div className={banner.type === 'ok' ? 'bannerOk' : 'bannerErr'}>
           <div>{banner.text}</div>
           {banner.meta && <div className="hint" style={{ marginTop: 6 }}>{banner.meta}</div>}
+          {banner.type === 'ok' && banner.showHistoryLink && (
+            <div style={{ marginTop: 10 }}>
+              <button type="button" className="buttonSecondary" onClick={() => navigate('/history')}>
+                View in History
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -82,8 +112,8 @@ export default function PromptWorkshop() {
             <div className="field" style={{ minWidth: 260 }}>
               <span className="label">Prompt type</span>
               <select className="select" value={promptType} onChange={(e) => setPromptType(e.target.value)}>
-                <option value="setup">Setup Prompt</option>
-                <option value="execution">Execution Prompt</option>
+                <option value="setup">Prompt Setup Inicial</option>
+                <option value="execution">Prompt Execução fatiada</option>
               </select>
             </div>
           </div>
@@ -95,7 +125,13 @@ export default function PromptWorkshop() {
           {sections.map((label) => (
             <div key={label} className="field" style={{ minWidth: 'auto' }}>
               <span className="label">{label}</span>
-              <textarea className="textarea" rows={4} value={values[label] || ''} onChange={(e) => setSection(label, e.target.value)} />
+              <textarea
+                className="textarea"
+                rows={4}
+                value={values[label] || ''}
+                placeholder={PLACEHOLDERS[label] || ''}
+                onChange={(e) => setSection(label, e.target.value)}
+              />
             </div>
           ))}
         </div>
