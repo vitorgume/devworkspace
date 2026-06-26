@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -33,6 +33,37 @@ const PLACEHOLDERS = {
   Output: 'Ex: Código final + endpoints + instruções de execução',
 }
 
+const DEFAULT_SETUP_VALUES = {
+  'Atue como':
+    'Desenvolvedor Sênior Especialista em Backend Java, Spring Boot ou Desenvolvedor Sênior Especialista em React, TypeScript, Tailwind',
+  Projeto:
+    'Estamos atuando no Sonar, uma ferramenta que fará analise de call de vendedores e pré-vendedores, utiliza como arquitetura o Clean Architecture. ou Estamos atuando no Brightdash, uma ferramenta integrada ao seu CRM e traz métricas importantes para a operação de vendas, no caso estamos no backend desse projeto, que utiliza como arquitetura Clean Architecture.',
+  'Ação Imediata':
+    'Apenas leia os arquivos de contexto que enviarei a seguir e diga "Contexto absorvido". Não gere código ainda.',
+}
+
+const DEFAULT_EXEC_VALUES = {
+  'Atue como':
+    'Desenvolvedor Sênior Especialista em Backend Java, Spring Boot ou Desenvolvedor Sênior Especialista em React, TypeScript, Tailwind',
+  Projeto: 'Sonar" ou "Brightdash',
+  Restrições:
+    '- Mantenha o padrão Clean Architecture.\n- Siga o padrão das outras classes. ou Mantenha o padrão Layer Architecture.',
+  Output: 'Implemente o código',
+}
+
+function defaultsForType(promptType) {
+  return promptType === 'setup' ? DEFAULT_SETUP_VALUES : DEFAULT_EXEC_VALUES
+}
+
+function mergeDefaults(sections, prev, defaults) {
+  const next = { ...prev }
+  for (const label of sections) {
+    const current = (prev[label] || '').trim()
+    if (!current && defaults[label]) next[label] = defaults[label]
+  }
+  return next
+}
+
 export default function PromptWorkshop() {
   const navigate = useNavigate()
   const [promptType, setPromptType] = useState('setup')
@@ -43,6 +74,10 @@ export default function PromptWorkshop() {
   const [banner, setBanner] = useState(null)
 
   const sections = useMemo(() => (promptType === 'setup' ? SETUP_SECTIONS : EXEC_SECTIONS), [promptType])
+
+  useEffect(() => {
+    setValues((prev) => mergeDefaults(sections, prev, defaultsForType(promptType)))
+  }, [promptType, sections])
 
   function setSection(label, content) {
     setValues((prev) => ({ ...prev, [label]: content }))
@@ -76,7 +111,7 @@ export default function PromptWorkshop() {
 
   function clearAll() {
     setTitle('')
-    setValues({})
+    setValues(mergeDefaults(sections, {}, defaultsForType(promptType)))
     setBanner(null)
   }
 

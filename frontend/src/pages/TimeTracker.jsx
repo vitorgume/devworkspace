@@ -25,6 +25,30 @@ function formatHMS(totalSeconds) {
   return sec ? `${h} h ${m} min ${sec} s` : `${h} h ${m} min`
 }
 
+function formatHHMMSS(totalSeconds) {
+  const s = Math.max(0, Math.floor(totalSeconds))
+  const hh = String(Math.floor(s / 3600)).padStart(2, '0')
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0')
+  const ss = String(s % 60).padStart(2, '0')
+  return `${hh}:${mm}:${ss}`
+}
+
+function parseTimeToSeconds(input) {
+  const raw = String(input || '').trim()
+  if (!raw) return null
+
+  const parts = raw.split(':').map((p) => p.trim())
+  if (parts.length < 1 || parts.length > 3) return null
+
+  const nums = parts.map((p) => (p === '' ? NaN : Number(p)))
+  if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null
+
+  const ints = nums.map((n) => Math.floor(n))
+  if (parts.length === 1) return ints[0]
+  if (parts.length === 2) return ints[0] * 60 + ints[1]
+  return ints[0] * 3600 + ints[1] * 60 + ints[2]
+}
+
 function todayStartMs() {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
@@ -143,6 +167,60 @@ export default function TimeTracker() {
     }
   }
 
+  async function editActiveTimer(entryId, currentSeconds) {
+    const value = window.prompt('Defina o tempo do timer (HH:MM:SS ou MM:SS):', formatHHMMSS(currentSeconds))
+    if (value === null) return
+    const seconds = parseTimeToSeconds(value)
+    if (seconds === null) {
+      setError('Formato inválido. Use HH:MM:SS ou MM:SS.')
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    try {
+      await apiFetch(`/api/timetracker/entry/${encodeURIComponent(entryId)}/elapsed`, {
+        method: 'PATCH',
+        body: JSON.stringify({ elapsed_seconds: Number(seconds) }),
+      })
+      setActiveEntries(await apiFetch('/api/timetracker/active'))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function editWorkedToday(taskId, currentLiveTodaySeconds, activeTodaySeconds) {
+    const value = window.prompt(
+      'Defina o tempo trabalhado hoje (HH:MM:SS ou MM:SS):',
+      formatHHMMSS(currentLiveTodaySeconds)
+    )
+    if (value === null) return
+    const desiredTotalSeconds = parseTimeToSeconds(value)
+    if (desiredTotalSeconds === null) {
+      setError('Formato inválido. Use HH:MM:SS ou MM:SS.')
+      return
+    }
+
+    const targetPersistedSeconds = Math.max(0, Math.floor(desiredTotalSeconds - Math.max(0, activeTodaySeconds || 0)))
+
+    setBusy(true)
+    setError('')
+    try {
+      await apiFetch(`/api/timetracker/task/${encodeURIComponent(taskId)}/worked-today`, {
+        method: 'PATCH',
+        body: JSON.stringify({ worked_today_seconds: Number(targetPersistedSeconds) }),
+      })
+      if (sprintId) setSummary(await apiFetch(`/api/timetracker/sprint-summary?sprint_id=${encodeURIComponent(sprintId)}`))
+      setActiveEntries(await apiFetch('/api/timetracker/active'))
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const progress = computed.totalEstimatedSeconds > 0 ? Math.min(1, computed.totalWorkedSeconds / computed.totalEstimatedSeconds) : 0
 
   return (
@@ -182,13 +260,33 @@ export default function TimeTracker() {
                 <tr key={t.task_id}>
                   <td className="td">{t.task_name}</td>
                   <td className="td">{Number(t.estimated_hours || 0).toFixed(2)} h</td>
-                  <td className="td">{formatHMS(workedToday)}</td>
+                  <td className="td">
+                    <span>{formatHMS(workedToday)}</span>{' '}
+                    <button
+                      type="button"
+                      className="button"
+                      disabled={busy}
+                      onClick={() => editWorkedToday(t.task_id, workedToday, Number(t.live_today_seconds || 0))}
+                    >
+                      Edit
+                    </button>
+                  </td>
                   <td className="td mono">{active ? formatMMSS(t.live_active_seconds) : '00:00'}</td>
                   <td className="td">
                     {active ? (
-                      <button type="button" className="button" disabled={busy} onClick={() => pauseEntry(active.id)}>
-                        ⏸ Pause
-                      </button>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" className="button" disabled={busy} onClick={() => pauseEntry(active.id)}>
+                          ⏸ Pause
+                        </button>
+                        <button
+                          type="button"
+                          className="button"
+                          disabled={busy}
+                          onClick={() => editActiveTimer(active.id, Number(t.live_active_seconds || 0))}
+                        >
+                          Edit timer
+                        </button>
+                      </div>
                     ) : (
                       <button type="button" className="button" disabled={busy} onClick={() => startTask(t.task_id)}>
                         ▶ Play

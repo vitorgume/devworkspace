@@ -1,18 +1,15 @@
 Act like
-Senior Developer Specialist in Java, Spring Boot and Clean Architecture, React, TypeScript, Tailwind
+Senior Developer Specialist in Java be, Spring Boot
 Project
 Sonar
 Base Context
-model.md, ReportManagementPage.tsx and ReportDetailsModal.tsx
+AI_RULES.md
 Objective
-Fix two small problems in the fe
+impl middleware to map all exceptions correctly
 Business Rules
-I need you to make two adjustments to fronted:
-1. Transcript details modal is broken
-The modal that has the transcription data is broken, in this case its height fills the entire screen and exceeds its limits, so there is no way for me to close it or read what is inside
-2. The date of the transcription is very random, in this case it is 12/31/1969, 21:00:00. I don't know if it's a be problem or how the fe is dealing with dates
-I need you to fix these two problems
+I need you to impl a ControllerMiddleware so that it maps all exceptions, and returns the status code 404, 401, 500, 400 so that the fe or whoever consumes the API has an adequate response to the error that occurred.
 Restrictions
-Keep the Layer Architecture standard
+- Follow the Clean Architecture standard
+- Use existing files as an example
 Output
-impl the code
+impl code.

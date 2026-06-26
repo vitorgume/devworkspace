@@ -4,7 +4,13 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.db.connection import get_connection
-from backend.models.schemas import TimeEntry, TimeEntryPauseRequest, TimeEntryStartRequest
+from backend.models.schemas import (
+    TimeEntry,
+    TimeEntryPauseRequest,
+    TimeEntrySetElapsedRequest,
+    TimeEntrySetWorkedTodayRequest,
+    TimeEntryStartRequest,
+)
 
 router = APIRouter()
 
@@ -104,6 +110,86 @@ def list_active_entries():
         "SELECT id, task_id, started_at, paused_at, duration_seconds "
         "FROM time_entries WHERE paused_at IS NULL ORDER BY started_at DESC"
     )
+
+
+@router.patch("/entry/{entry_id}/elapsed", response_model=TimeEntry)
+def set_entry_elapsed(entry_id: int, payload: TimeEntrySetElapsedRequest):
+    if payload.elapsed_seconds < 0:
+        raise HTTPException(status_code=400, detail="elapsed_seconds must be >= 0")
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "SELECT id, task_id, started_at, paused_at, duration_seconds "
+            "FROM time_entries WHERE id = %s",
+            (entry_id,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Entry not found")
+
+        elapsed = int(payload.elapsed_seconds)
+        if row["paused_at"] is None:
+            cursor.execute(
+                "UPDATE time_entries "
+                "SET started_at = DATE_SUB(NOW(), INTERVAL %s SECOND) "
+                "WHERE id = %s",
+                (elapsed, entry_id),
+            )
+        else:
+            cursor.execute(
+                "UPDATE time_entries "
+                "SET started_at = DATE_SUB(paused_at, INTERVAL %s SECOND), duration_seconds = %s "
+                "WHERE id = %s",
+                (elapsed, elapsed, entry_id),
+            )
+        conn.commit()
+
+        cursor.execute(
+            "SELECT id, task_id, started_at, paused_at, duration_seconds "
+            "FROM time_entries WHERE id = %s",
+            (entry_id,),
+        )
+        updated = cursor.fetchone()
+        if not updated:
+            raise HTTPException(status_code=500, detail="Failed to update entry")
+        return updated
+    finally:
+        cursor.close()
+        conn.close()
+
+
+@router.patch("/task/{task_id}/worked-today")
+def set_task_worked_today(task_id: int, payload: TimeEntrySetWorkedTodayRequest):
+    if payload.worked_today_seconds < 0:
+        raise HTTPException(status_code=400, detail="worked_today_seconds must be >= 0")
+
+    target = int(payload.worked_today_seconds)
+    current = _fetch_one(
+        "SELECT COALESCE(SUM(duration_seconds), 0) AS worked_today_seconds "
+        "FROM time_entries "
+        "WHERE task_id = %s AND DATE(started_at) = CURDATE()",
+        (task_id,),
+    )
+    current_seconds = int((current or {}).get("worked_today_seconds") or 0)
+    delta = target - current_seconds
+    if delta == 0:
+        return {"task_id": task_id, "worked_today_seconds": target, "delta_seconds": 0}
+
+    conn = get_connection()
+    cursor = conn.cursor(dictionary=True)
+    try:
+        cursor.execute(
+            "INSERT INTO time_entries (task_id, started_at, paused_at, duration_seconds) "
+            "VALUES (%s, NOW(), NOW(), %s)",
+            (task_id, delta),
+        )
+        conn.commit()
+        return {"task_id": task_id, "worked_today_seconds": target, "delta_seconds": delta}
+    finally:
+        cursor.close()
+        conn.close()
 
 
 @router.get("/sprint-summary")

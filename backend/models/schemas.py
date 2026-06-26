@@ -71,3 +71,11 @@ class TimeEntry(BaseModel):
     started_at: datetime
     paused_at: datetime | None = None
     duration_seconds: int
+
+
+class TimeEntrySetElapsedRequest(BaseModel):
+    elapsed_seconds: int
+
+
+class TimeEntrySetWorkedTodayRequest(BaseModel):
+    worked_today_seconds: int
