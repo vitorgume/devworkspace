@@ -35,9 +35,9 @@ const PLACEHOLDERS = {
 
 const DEFAULT_SETUP_VALUES = {
   'Atue como':
-    'Desenvolvedor Sênior Especialista em Backend Java, Spring Boot ou Desenvolvedor Sênior Especialista em React, TypeScript, Tailwind',
+    'Desenvolvedor Sênior Especialista em Backend Java, Spring Boot, Desenvolvedor Sênior Especialista em React, TypeScript, Tailwind ou Desenvolvedor Sênior Especialista em Wordpress, Wordpress Headless, Astro, Tailwind',
   Projeto:
-    'Estamos atuando no Sonar, uma ferramenta que fará analise de call de vendedores e pré-vendedores, utiliza como arquitetura o Clean Architecture. ou Estamos atuando no Brightdash, uma ferramenta integrada ao seu CRM e traz métricas importantes para a operação de vendas, no caso estamos no backend desse projeto, que utiliza como arquitetura Clean Architecture.',
+    'Estamos atuando no Sonar, uma ferramenta que fará analise de call de vendedores e pré-vendedores, utiliza como arquitetura o Clean Architecture. , Estamos atuando no Brightdash, uma ferramenta integrada ao seu CRM e traz métricas importantes para a operação de vendas, no caso estamos no backend desse projeto, que utiliza como arquitetura Clean Architecture. ou Estamos atuando no Site Gume, esse projeto é o site oficial da Gume (a empresa dos projetos que fazemos), ela foi feita em Astro e Tailwind com o Wordpress Headless de arquitetura e backend.',
   'Ação Imediata':
     'Apenas leia os arquivos de contexto que enviarei a seguir e diga "Contexto absorvido". Não gere código ainda.',
 }
@@ -45,7 +45,7 @@ const DEFAULT_SETUP_VALUES = {
 const DEFAULT_EXEC_VALUES = {
   'Atue como':
     'Desenvolvedor Sênior Especialista em Backend Java, Spring Boot ou Desenvolvedor Sênior Especialista em React, TypeScript, Tailwind',
-  Projeto: 'Sonar" ou "Brightdash',
+  Projeto: 'Sonar, Brightdash ou Site Gume',
   Restrições:
     '- Mantenha o padrão Clean Architecture.\n- Siga o padrão das outras classes. ou Mantenha o padrão Layer Architecture.',
   Output: 'Implemente o código',

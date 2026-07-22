@@ -1,15 +1,17 @@
 Act like
 Senior Developer Specialist in Java be, Spring Boot
 Project
-Sonar
+We are working on Brightdash, a tool integrated with your CRM and brings important metrics to the sales operation, in this case we are on the be of this project, which uses Clean Architecture as an architecture.
 Base Context
-AI_RULES.md
+error-deadlock-myslq.txt
 Objective
-impl middleware to map all exceptions correctly
+impl deadlock fix
 Business Rules
-I need you to impl a ControllerMiddleware so that it maps all exceptions, and returns the status code 404, 401, 500, 400 so that the fe or whoever consumes the API has an adequate response to the error that occurred.
+As I explained previously, I had the deadlock error in MySQL in production, which is in error-deadlock-myslq, and from what I researched this error may have occurred due to the merging of the DataFailoverEntity with the CompanyEntity, in addition to the competition logic that exists in the code today does not seem to have worked. So what I want you to do:
+1. Confirm these two theories that I brought up, to really know if these could have been the two causes
+2. impl the fix so this problem doesn't happen again
 Restrictions
-- Follow the Clean Architecture standard
-- Use existing files as an example
+- Maintain the Clean Architecture standard.
+- Follow the pattern of other classes.
 Output
-impl code.
+impl the code
