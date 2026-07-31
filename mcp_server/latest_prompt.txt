@@ -1,17 +1,17 @@
 Act like
-Senior Developer Specialist in Java be, Spring Boot
+Senior Developer Specialist in be Java, Spring Boot and Senior Developer Specialist in React, TypeScript, Tailwind
 Project
-We are working on Brightdash, a tool integrated with your CRM and brings important metrics to the sales operation, in this case we are on the be of this project, which uses Clean Architecture as an architecture.
+We are working on Sonar, a tool that will analyze calls from salespeople and pre-salespeople, using Clean Architecture as its architecture.
 Base Context
-error-deadlock-myslq.txt
+Context files
 Objective
-impl deadlock fix
+impl report compilation feature
 Business Rules
-As I explained previously, I had the deadlock error in MySQL in production, which is in error-deadlock-myslq, and from what I researched this error may have occurred due to the merging of the DataFailoverEntity with the CompanyEntity, in addition to the competition logic that exists in the code today does not seem to have worked. So what I want you to do:
-1. Confirm these two theories that I brought up, to really know if these could have been the two causes
-2. impl the fix so this problem doesn't happen again
+The idea is that this compilation is a report like the call report, but without the knowledge base part and the transcription, and then it would have fixed KPIs, personalized ones and general analysis based on users and reports for the specified time interval.
+We are focusing on the manager's view, so the idea is that it facilitates the manager's analysis
 Restrictions
 - Maintain the Clean Architecture standard.
 - Follow the pattern of other classes.
+- Maintain the Layer Architecture standard.
 Output
 impl the code

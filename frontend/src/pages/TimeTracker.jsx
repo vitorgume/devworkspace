@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const API = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -55,12 +55,29 @@ function todayStartMs() {
   return d.getTime()
 }
 
+function toDatetimeLocalValue(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function datetimeLocalToIso(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return null
+  return raw.length === 16 ? `${raw}:00` : raw
+}
+
 export default function TimeTracker() {
-  const [sprints, setSprints] = useState([])
-  const [sprintId, setSprintId] = useState('')
+  const [projects, setProjects] = useState([])
+  const [projectId, setProjectId] = useState('')
+  const [tags, setTags] = useState([])
+  const [tag, setTag] = useState('')
   const [summary, setSummary] = useState(null)
   const [activeEntries, setActiveEntries] = useState([])
-  const [nowTick, setNowTick] = useState(Date.now())
+  const [entriesByTaskId, setEntriesByTaskId] = useState({})
+  const [expandedTaskIds, setExpandedTaskIds] = useState(() => new Set())
+  const [nowTick, setNowTick] = useState(() => Date.now())
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -74,13 +91,26 @@ export default function TimeTracker() {
 
   useEffect(() => {
     let cancelled = false
-    apiFetch('/api/sprints')
-      .then((data) => !cancelled && setSprints(Array.isArray(data) ? data : []))
+    apiFetch('/api/projects')
+      .then((data) => !cancelled && setProjects(Array.isArray(data) ? data : []))
       .catch((e) => !cancelled && setError(e.message))
     return () => {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    if (!projectId) {
+      return
+    }
+    apiFetch(`/api/tasks/tags?project_id=${encodeURIComponent(projectId)}`)
+      .then((data) => !cancelled && setTags(Array.isArray(data) ? data : []))
+      .catch((e) => !cancelled && setError(e.message))
+    return () => {
+      cancelled = true
+    }
+  }, [projectId])
 
   useEffect(() => {
     let cancelled = false
@@ -93,18 +123,18 @@ export default function TimeTracker() {
   }, [])
 
   useEffect(() => {
-    if (!sprintId) {
-      setSummary(null)
-      return
-    }
+    if (!projectId) return
     let cancelled = false
-    apiFetch(`/api/timetracker/sprint-summary?sprint_id=${encodeURIComponent(sprintId)}`)
+    const qs = new URLSearchParams()
+    qs.set('project_id', projectId)
+    if (tag) qs.set('tag', tag)
+    apiFetch(`/api/timetracker/tag-summary?${qs.toString()}`)
       .then((data) => !cancelled && setSummary(data))
       .catch((e) => !cancelled && setError(e.message))
     return () => {
       cancelled = true
     }
-  }, [sprintId])
+  }, [projectId, tag])
 
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current)
@@ -112,12 +142,15 @@ export default function TimeTracker() {
     return () => intervalRef.current && clearInterval(intervalRef.current)
   }, [])
 
-  function elapsedSecondsSince(startedAtIso, mode) {
-    const startMs = new Date(startedAtIso).getTime()
-    const endMs = nowTick
-    if (mode === 'today') return Math.max(0, Math.floor((endMs - Math.max(startMs, todayStartMs())) / 1000))
-    return Math.max(0, Math.floor((endMs - startMs) / 1000))
-  }
+  const elapsedSecondsSince = useCallback(
+    (startedAtIso, mode) => {
+      const startMs = new Date(startedAtIso).getTime()
+      const endMs = nowTick
+      if (mode === 'today') return Math.max(0, Math.floor((endMs - Math.max(startMs, todayStartMs())) / 1000))
+      return Math.max(0, Math.floor((endMs - startMs) / 1000))
+    },
+    [nowTick]
+  )
 
   const computed = useMemo(() => {
     const tasks = Array.isArray(summary?.tasks) ? summary.tasks : []
@@ -138,7 +171,7 @@ export default function TimeTracker() {
     const totalEstimatedSeconds = totalEstimatedHours * 3600
     const remainingSeconds = Math.max(0, totalEstimatedSeconds - totalWorkedSeconds)
     return { tasks: tasksWithLive, totalWorkedSeconds, totalEstimatedHours, totalEstimatedSeconds, remainingSeconds }
-  }, [summary, activeByTaskId, nowTick])
+  }, [summary, activeByTaskId, elapsedSecondsSince])
 
   async function startTask(taskId) {
     setBusy(true)
@@ -146,6 +179,10 @@ export default function TimeTracker() {
     try {
       await apiFetch('/api/timetracker/start', { method: 'POST', body: JSON.stringify({ task_id: Number(taskId) }) })
       setActiveEntries(await apiFetch('/api/timetracker/active'))
+      if (expandedTaskIds.has(Number(taskId))) {
+        const entries = await apiFetch(`/api/timetracker/task/${encodeURIComponent(taskId)}/entries`)
+        setEntriesByTaskId((prev) => ({ ...prev, [Number(taskId)]: Array.isArray(entries) ? entries : [] }))
+      }
     } catch (e) {
       setError(e.message)
     } finally {
@@ -153,13 +190,22 @@ export default function TimeTracker() {
     }
   }
 
-  async function pauseEntry(entryId) {
+  async function pauseEntry(entry) {
     setBusy(true)
     setError('')
     try {
-      await apiFetch('/api/timetracker/pause', { method: 'POST', body: JSON.stringify({ entry_id: Number(entryId) }) })
+      await apiFetch('/api/timetracker/pause', { method: 'POST', body: JSON.stringify({ entry_id: Number(entry.id) }) })
       setActiveEntries(await apiFetch('/api/timetracker/active'))
-      if (sprintId) setSummary(await apiFetch(`/api/timetracker/sprint-summary?sprint_id=${encodeURIComponent(sprintId)}`))
+      if (projectId) {
+        const qs = new URLSearchParams()
+        qs.set('project_id', projectId)
+        if (tag) qs.set('tag', tag)
+        setSummary(await apiFetch(`/api/timetracker/tag-summary?${qs.toString()}`))
+      }
+      if (expandedTaskIds.has(Number(entry.task_id))) {
+        const entries = await apiFetch(`/api/timetracker/task/${encodeURIComponent(entry.task_id)}/entries`)
+        setEntriesByTaskId((prev) => ({ ...prev, [Number(entry.task_id)]: Array.isArray(entries) ? entries : [] }))
+      }
     } catch (e) {
       setError(e.message)
     } finally {
@@ -167,23 +213,44 @@ export default function TimeTracker() {
     }
   }
 
-  async function editActiveTimer(entryId, currentSeconds) {
-    const value = window.prompt('Defina o tempo do timer (HH:MM:SS ou MM:SS):', formatHHMMSS(currentSeconds))
-    if (value === null) return
-    const seconds = parseTimeToSeconds(value)
-    if (seconds === null) {
-      setError('Formato inválido. Use HH:MM:SS ou MM:SS.')
+  async function toggleEntries(taskId) {
+    const id = Number(taskId)
+    const next = new Set(expandedTaskIds)
+    if (next.has(id)) {
+      next.delete(id)
+      setExpandedTaskIds(next)
       return
     }
+    next.add(id)
+    setExpandedTaskIds(next)
+    try {
+      const entries = await apiFetch(`/api/timetracker/task/${encodeURIComponent(id)}/entries`)
+      setEntriesByTaskId((prev) => ({ ...prev, [id]: Array.isArray(entries) ? entries : [] }))
+    } catch (e) {
+      setError(e.message)
+    }
+  }
 
+  async function saveEntry(entryId, taskId, startedAtValue, pausedAtValue) {
     setBusy(true)
     setError('')
     try {
-      await apiFetch(`/api/timetracker/entry/${encodeURIComponent(entryId)}/elapsed`, {
+      await apiFetch(`/api/timetracker/entry/${encodeURIComponent(entryId)}`, {
         method: 'PATCH',
-        body: JSON.stringify({ elapsed_seconds: Number(seconds) }),
+        body: JSON.stringify({
+          started_at: datetimeLocalToIso(startedAtValue),
+          paused_at: datetimeLocalToIso(pausedAtValue),
+        }),
       })
       setActiveEntries(await apiFetch('/api/timetracker/active'))
+      if (projectId) {
+        const qs = new URLSearchParams()
+        qs.set('project_id', projectId)
+        if (tag) qs.set('tag', tag)
+        setSummary(await apiFetch(`/api/timetracker/tag-summary?${qs.toString()}`))
+      }
+      const entries = await apiFetch(`/api/timetracker/task/${encodeURIComponent(taskId)}/entries`)
+      setEntriesByTaskId((prev) => ({ ...prev, [Number(taskId)]: Array.isArray(entries) ? entries : [] }))
     } catch (e) {
       setError(e.message)
     } finally {
@@ -212,7 +279,12 @@ export default function TimeTracker() {
         method: 'PATCH',
         body: JSON.stringify({ worked_today_seconds: Number(targetPersistedSeconds) }),
       })
-      if (sprintId) setSummary(await apiFetch(`/api/timetracker/sprint-summary?sprint_id=${encodeURIComponent(sprintId)}`))
+      if (projectId) {
+        const qs = new URLSearchParams()
+        qs.set('project_id', projectId)
+        if (tag) qs.set('tag', tag)
+        setSummary(await apiFetch(`/api/timetracker/tag-summary?${qs.toString()}`))
+      }
       setActiveEntries(await apiFetch('/api/timetracker/active'))
     } catch (e) {
       setError(e.message)
@@ -230,12 +302,35 @@ export default function TimeTracker() {
       <div className="card">
         <div className="row">
           <div className="field" style={{ minWidth: 320 }}>
-            <span className="label">Sprint</span>
-            <select className="select" value={sprintId} onChange={(e) => setSprintId(e.target.value)}>
-            <option value="">Select...</option>
-            {sprints.map((s) => (
-              <option key={s.id} value={String(s.id)}>{s.name}</option>
-            ))}
+            <span className="label">Project</span>
+            <select
+              className="select"
+              value={projectId}
+              onChange={(e) => {
+                const next = e.target.value
+                setProjectId(next)
+                setError('')
+                setTag('')
+                setTags([])
+                setSummary(null)
+                setEntriesByTaskId({})
+                setExpandedTaskIds(new Set())
+              }}
+            >
+              <option value="">Select...</option>
+              {projects.map((p) => (
+                <option key={p.id} value={String(p.id)}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field" style={{ minWidth: 260 }}>
+            <span className="label">Tag</span>
+            <select className="select" value={tag} disabled={!projectId} onChange={(e) => setTag(e.target.value)}>
+              <option value="">All</option>
+              {tags.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -256,50 +351,107 @@ export default function TimeTracker() {
             {computed.tasks.map((t) => {
               const active = activeByTaskId.get(Number(t.task_id))
               const workedToday = Number(t.live_worked_today_seconds || 0)
+              const isExpanded = expandedTaskIds.has(Number(t.task_id))
+              const entries = entriesByTaskId[Number(t.task_id)] || []
               return (
-                <tr key={t.task_id}>
-                  <td className="td">{t.task_name}</td>
-                  <td className="td">{Number(t.estimated_hours || 0).toFixed(2)} h</td>
-                  <td className="td">
-                    <span>{formatHMS(workedToday)}</span>{' '}
-                    <button
-                      type="button"
-                      className="button"
-                      disabled={busy}
-                      onClick={() => editWorkedToday(t.task_id, workedToday, Number(t.live_today_seconds || 0))}
-                    >
-                      Edit
-                    </button>
-                  </td>
-                  <td className="td mono">{active ? formatMMSS(t.live_active_seconds) : '00:00'}</td>
-                  <td className="td">
-                    {active ? (
+                <Fragment key={t.task_id}>
+                  <tr key={t.task_id}>
+                    <td className="td">{t.task_name}</td>
+                    <td className="td">{Number(t.estimated_hours || 0).toFixed(2)} h</td>
+                    <td className="td">
+                      <span>{formatHMS(workedToday)}</span>{' '}
+                      <button
+                        type="button"
+                        className="button"
+                        disabled={busy}
+                        onClick={() => editWorkedToday(t.task_id, workedToday, Number(t.live_today_seconds || 0))}
+                      >
+                        Edit
+                      </button>
+                    </td>
+                    <td className="td mono">{active ? formatMMSS(t.live_active_seconds) : '00:00'}</td>
+                    <td className="td">
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                        <button type="button" className="button" disabled={busy} onClick={() => pauseEntry(active.id)}>
-                          ⏸ Pause
-                        </button>
-                        <button
-                          type="button"
-                          className="button"
-                          disabled={busy}
-                          onClick={() => editActiveTimer(active.id, Number(t.live_active_seconds || 0))}
-                        >
-                          Edit timer
+                        {active ? (
+                          <button type="button" className="button" disabled={busy} onClick={() => pauseEntry(active)}>
+                            ⏸ Pause
+                          </button>
+                        ) : (
+                          <button type="button" className="button" disabled={busy} onClick={() => startTask(t.task_id)}>
+                            ▶ Play
+                          </button>
+                        )}
+                        <button type="button" className="button" disabled={busy} onClick={() => toggleEntries(t.task_id)}>
+                          {isExpanded ? 'Hide entries' : 'Entries'}
                         </button>
                       </div>
-                    ) : (
-                      <button type="button" className="button" disabled={busy} onClick={() => startTask(t.task_id)}>
-                        ▶ Play
-                      </button>
-                    )}
-                  </td>
-                </tr>
+                    </td>
+                  </tr>
+                  {isExpanded && (
+                    <tr key={`${t.task_id}-entries`}>
+                      <td className="td" colSpan={5}>
+                        <div style={{ display: 'grid', gap: 10 }}>
+                          {entries.length === 0 ? (
+                            <div style={{ color: 'var(--muted)' }}>No entries yet.</div>
+                          ) : (
+                            entries.map((e) => (
+                              <div
+                                key={e.id}
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: '1fr 1fr auto auto',
+                                  gap: 8,
+                                  alignItems: 'end',
+                                }}
+                              >
+                                <div className="field">
+                                  <span className="hint">Start</span>
+                                  <input
+                                    className="input"
+                                    type="datetime-local"
+                                    defaultValue={toDatetimeLocalValue(e.started_at)}
+                                    id={`start-${e.id}`}
+                                  />
+                                </div>
+                                <div className="field">
+                                  <span className="hint">End</span>
+                                  <input
+                                    className="input"
+                                    type="datetime-local"
+                                    defaultValue={toDatetimeLocalValue(e.paused_at)}
+                                    id={`end-${e.id}`}
+                                  />
+                                </div>
+                                <div className="field" style={{ minWidth: 140 }}>
+                                  <span className="hint">Duration</span>
+                                  <div className="mono">{formatHHMMSS(Number(e.duration_seconds || 0))}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="button"
+                                  disabled={busy}
+                                  onClick={() => {
+                                    const startEl = document.getElementById(`start-${e.id}`)
+                                    const endEl = document.getElementById(`end-${e.id}`)
+                                    saveEntry(e.id, t.task_id, startEl?.value || '', endEl?.value || '')
+                                  }}
+                                >
+                                  Save
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               )
             })}
             {computed.tasks.length === 0 && (
               <tr>
                 <td className="td" colSpan={5}>
-                  {sprintId ? 'No tasks found for this sprint.' : 'Select a sprint to see tasks.'}
+                  {projectId ? 'No tasks found for this filter.' : 'Select a project to see tasks.'}
                 </td>
               </tr>
             )}

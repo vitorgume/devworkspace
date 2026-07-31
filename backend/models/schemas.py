@@ -38,7 +38,7 @@ class Sprint(SprintCreate):
 
 
 class TaskCreate(BaseModel):
-    sprint_id: int
+    sprint_id: int | None = None
     project_id: int
     name: str
     tag: str | None = None
@@ -55,6 +55,15 @@ class Task(TaskCreate):
     margin: float
     total_hours: float
     created_at: datetime
+
+
+class TaskUpdate(BaseModel):
+    name: str | None = None
+    tag: str | None = None
+    complexity: Complexity | None = None
+    optimistic: int | None = None
+    probable: int | None = None
+    pessimistic: int | None = None
 
 
 class TimeEntryStartRequest(BaseModel):
@@ -79,3 +88,8 @@ class TimeEntrySetElapsedRequest(BaseModel):
 
 class TimeEntrySetWorkedTodayRequest(BaseModel):
     worked_today_seconds: int
+
+
+class TimeEntryUpdateRequest(BaseModel):
+    started_at: datetime | None = None
+    paused_at: datetime | None = None
