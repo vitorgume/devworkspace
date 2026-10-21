@@ -1,4 +1,5 @@
 import os
+import threading
 from typing import Any
 
 from dotenv import load_dotenv
@@ -8,8 +9,11 @@ load_dotenv()
 
 DB_TIME_ZONE = os.getenv("DB_TIME_ZONE", "-03:00")
 
+_schema_lock = threading.Lock()
+_schema_ready = False
 
-def get_connection() -> Any:
+
+def _open_connection() -> Any:
     try:
         import mysql.connector
     except ModuleNotFoundError as e:
@@ -32,4 +36,40 @@ def get_connection() -> Any:
         cursor.execute("SET time_zone = %s", (DB_TIME_ZONE,))
     finally:
         cursor.close()
+    return conn
+
+
+def ensure_schema() -> None:
+    """Apply pending migrations once per process, on first successful connection.
+
+    `start.sh` launches the backend and MySQL is often still coming up (or not
+    running at all), so migrating only at startup can silently skip and leave
+    the API querying columns that do not exist. Retrying here until it succeeds
+    once makes the boot order irrelevant.
+    """
+    global _schema_ready
+    if _schema_ready:
+        return
+    with _schema_lock:
+        if _schema_ready:
+            return
+        from backend.db.migrations import run_migrations
+
+        conn = _open_connection()
+        try:
+            applied = run_migrations(conn)
+        finally:
+            conn.close()
+        if applied:
+            print(f"[db] migrations applied: {', '.join(applied)}")
+        _schema_ready = True
+
+
+def get_connection() -> Any:
+    conn = _open_connection()
+    try:
+        ensure_schema()
+    except Exception:
+        conn.close()
+        raise
     return conn

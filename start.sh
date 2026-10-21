@@ -9,7 +9,9 @@ fi
 
 trap "kill 0" SIGINT SIGTERM
 
-source backend/venv/Scripts/activate && uvicorn backend.main:app --reload --port 8000 &
+# Invoca o uvicorn via "python -m" em vez do stub backend/venv/Scripts/uvicorn.exe:
+# o stub nao e assinado e o Smart App Control do Windows bloqueia sua execucao.
+backend/venv/Scripts/python.exe -m uvicorn backend.main:app --reload --port 8000 &
 
 if command -v npm >/dev/null 2>&1; then
   npm --prefix frontend run dev -- --port 5173 --strictPort &

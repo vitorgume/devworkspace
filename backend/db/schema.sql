@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS time_entries (
   started_at DATETIME NOT NULL,
   paused_at DATETIME NULL,
   duration_seconds INT NOT NULL DEFAULT 0,
+  -- Number of tasks that shared this stretch of wall clock (parallel session).
+  -- Effective time for the task is duration_seconds / share_count.
+  share_count INT NOT NULL DEFAULT 1,
   CONSTRAINT fk_time_entries_task_id FOREIGN KEY (task_id) REFERENCES tasks (id)
 );
 

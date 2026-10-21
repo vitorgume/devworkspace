@@ -228,6 +228,25 @@ a {
   font-family: var(--mono);
 }
 
+.rowExpanded > .td {
+  border-bottom-color: transparent;
+}
+
+.detailCell {
+  padding: 0 8px 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.detailPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: rgba(15, 17, 23, 0.35);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px;
+}
+
 .scrollArea {
   display: flex;
   flex-direction: column;
@@ -247,4 +266,86 @@ a {
 .progressFill {
   height: 10px;
   background: var(--accent);
+}
+
+.tabBar {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 220px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: rgba(226, 232, 240, 0.04);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.tab:hover {
+  background: rgba(226, 232, 240, 0.08);
+  color: var(--text);
+}
+
+.tabActive {
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 -2px 0 var(--accent) inset;
+}
+
+.tabLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tabClose {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 2px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tabClose:hover {
+  color: var(--text);
+  background: rgba(239, 68, 68, 0.25);
+}
+
+.tabAdd {
+  border: 1px dashed var(--border);
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tabAdd:hover {
+  color: var(--text);
+  border-color: rgba(99, 102, 241, 0.5);
+}
+
+.splitBadge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--text);
+  background: var(--accent-weak);
+  border: 1px solid rgba(99, 102, 241, 0.45);
 }

@@ -1,9 +1,24 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.db.connection import ensure_schema
 from backend.routers import prompts, tasks, timetracker
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Best-effort: if MySQL is not up yet, the first request that reaches the
+    # database migrates instead (see backend.db.connection.ensure_schema).
+    try:
+        ensure_schema()
+    except Exception as e:
+        print(f"[db] migrations deferred to first request: {e}")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,8 +1,16 @@
 Act like
-Senior Developer Specialist in be Java, Spring Boot, Senior Developer Specialist in React, TypeScript, Tailwind or Senior Developer Specialist in Wordpress, Wordpress Headless, Astro, Tailwind
+Senior Developer Specialist in Java be, Spring Boot, Senior Developer Specialist in React, TypeScript, Tailwind
 Project
-We are working on Sonar, a tool that will analyze calls from salespeople and pre-salespeople, using Clean Architecture as its architecture. , We are working on Brightdash, a tool integrated with your CRM and brings important metrics to the sales operation, in this case we are on the be of this project, which uses Clean Architecture as an architecture. or We are working on the Gume Site, this project is the official website of Gume (the company behind the projects we do), it was created in Astro and Tailwind with Wordpress Headless for architecture and be.
-General Task
-test
-Immediate Action
-Just read the context files I'll send you next and say "Context absorbed." Don't generate code yet.
+We are working on Sonar, a tool that will analyze calls from salespeople and pre-salespeople, using Clean Architecture as its architecture.
+Base Context
+Context files
+Objective
+impl new meeting analytics module
+Business Rules
+We are going to open a new Sonar analysis channel, which will be the analysis of sales meetings, for this we will use Recall.ai, which creates bots in meetings, records it and returns the transcription to us. In context, there are the Recall.ai documentation that I analyzed to be interesting for this implementation, but also the documentation link in case you want to see something I forgot.
+Regarding what this module will be like in Sonar, it will be as follows, Recall.ai recommends creating scheduled bots, connected with the user's calendar, so in sonar there is the option, including recommending the user, where it lists the events on their calendar, or, creates an event on their calendar. But you can also have the option of creating the bot without an event, as long as it is 20 minutes before the meeting (safe time for Recall.ai to create the bot). I didn't read too much in depth to understand how this part of Recall.ai bots works, so research and go into the documentation, it's ok not to be perfect on the first implementation
+Restrictions
+- Maintain the Clean Architecture standard.
+- Follow the pattern of other classes. or Keep the Layer Architecture default.
+Output
+impl the code
