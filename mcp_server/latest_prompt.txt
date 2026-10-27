@@ -5,12 +5,50 @@ We are working on Sonar, a tool that will analyze calls from salespeople and pre
 Base Context
 Context files
 Objective
-impl new meeting analytics module
+impl support for processing large files and other adjustments.
 Business Rules
-We are going to open a new Sonar analysis channel, which will be the analysis of sales meetings, for this we will use Recall.ai, which creates bots in meetings, records it and returns the transcription to us. In context, there are the Recall.ai documentation that I analyzed to be interesting for this implementation, but also the documentation link in case you want to see something I forgot.
-Regarding what this module will be like in Sonar, it will be as follows, Recall.ai recommends creating scheduled bots, connected with the user's calendar, so in sonar there is the option, including recommending the user, where it lists the events on their calendar, or, creates an event on their calendar. But you can also have the option of creating the bot without an event, as long as it is 20 minutes before the meeting (safe time for Recall.ai to create the bot). I didn't read too much in depth to understand how this part of Recall.ai bots works, so research and go into the documentation, it's ok not to be perfect on the first implementation
+Here it is, organized to paste straight into your run prompt:
+---
+## 1. Migration `transcript` TEXT → MEDIUMTEXT
+**Objective:** allow recording transcriptions of more than 65 thousand characters (currently the limit of `TEXT` in MySQL).
+**What to do:**
+1. Create `migrations/flyway/sql/V1_32_0__widen_report_transcript_column.sql` with:
+```sql
+ALTER TABLE `reports` MODIFY COLUMN `transcript` MEDIUMTEXT;
+```
+Follow the same header comment pattern as `V1_31_0` explaining the reason (long links would overflow the `TEXT`) and reinforcing that, with `ddl-auto=validate`, applying this migration via the Flyway CLI is a prerequisite for deployment.
+2. In [ReportEntity.java:73](be/src/main/java/com/gume/sonar/infrastructure/repo/entity/report/ReportEntity.java:73), change `@Column(columnDefinition = "TEXT")` to `@Column(columnDefinition = "MEDIUMTEXT")` in the `transcript` field.
+3. Don't touch `transcriptTimings` or `analysis` — they don't have the same size risk.
+**Acceptance criteria:** apply the migration locally, upload the application with `ddl-auto=validate` without schema error, and manually insert a text of >70 thousand characters in the column to confirm that it persists.
+## 2. Skip speaker organization in long transcriptions, without timeout retry
+**Goal:** stop spending ~3 minutes and 3 AI calls on a step that today fails anyway above a certain size.
+1. In [OrganizarLocutoresUseCase.java](be/src/main/java/com/gume/sonar/application/usecase/report/OrganizarLocutoresUseCase.java), at the beginning of the `organizar` method, add a size check right after the `possuiDivisaoDeLocutores` check:
+- Define a constant `LIMITE_CARACTERES_PARA_ORGANIZACAO` (suggestion: 20_000, calibrate later by observing the actual production logs).
+- If `transcript.length()` exceeds this limit, log a `log.info` explaining that the transcript is too long for speaker review and ret the original transcript without calling the AI.
+2. In [RetryExecutor.java](be/src/main/java/com/gume/sonar/infrastructure/provider/support/RetryExecutor.java), the class is generic for all AI calls — do not change the retry in it. Instead, in `AgenteIAApiDataProvider`, check whether the timeout exception (`HttpTimeoutException`) is already treated as transient; if so, it will continue trying 3x on any call, not just on `organizeSpeakers`. Since the real mitigation is to stop calling the AI ​​above the size limit (step 1), there is no need to change the `RetryExecutor` — the size cut prevents the timeout from happening in that specific flow.
+3. Document in the method comment why the limit exists: the model output would need more tokens than gpt-4o's output limit allows for very long transcripts, so trying and failing is sure waste.
+**Acceptance criteria:** with a synthetic transcription of >20 thousand characters, confirm that the step does not call OpenAI and the report continues for analysis with the original transcription, without the retry/timeout log.
+## 3. Record the transcript before the AI chain
+**Objective:** not to lose the transcription (and the cost paid to AssemblyAI) if something fails in the following steps.
+1. In [ReportUseCase.java:742](be/src/main/java/com/gume/sonar/application/usecase/report/ReportUseCase.java:742), within `processarTranscricao`, right after calculating `textoRevisado` (step 3, after `organizarLocutoresUseCase.organizar(...)`) and **before** `extractFixedMetrics` and `analyzeAndFinish`:
+- Persist the report with `transcript` and `transcriptTimings` already filled in, keeping the status at `PROCESSING` (an intermediate `save`, not the final `save` that already exists today).
+2. Evaluate whether it is worth separating this intermediate `save` into a dedicated method (e.g. `salvarTranscricaoParcial(Report report)`) to make it clear that it is a checkpoint, not the completion of the report.
+3. This alone does not create automatic reprocessing — it only guarantees that the data is already in the db. For the user to actually be able to reprocess without paying AssemblyAI again, they would need a button/action that calls something equivalent to `analyzeEFinish` from the already saved transcription (similar to what `reanalyzeForNewDono` already does). Decide whether this goes in now or later — mention it explicitly in the prompt if you want this manual reprocessing action to be created together.
+**Acceptance criteria:** force a purposeful failure in `extrairMetricasFixas` (e.g. throw exception) after the transcript has been saved, and confirm that the `transcript` continues to be recorded in the db even with the report marked as `ERROR`.
+## 4. Duration limit on upload (2h) with clear message on the screen
+**Objective:** prevent the user from uploading audio beyond what the system supports well, warning before uploading instead of letting it fail afterwards.
+**What to do (fe):**
+1. In [ReportFormModal.tsx:59](fe/src/presentation/pages/ReportManagement/ReportFormModal.tsx:59), inside `handleFilesSelected`, before accepting the file:
+- Read the audio duration in the browser by creating an `Audio` element with `URL.createObjectURL(file)` and reading `duration` in the `loadedmetadata` event (it is asynchronous, so validation needs to be in an `async`/callback).
+- If the duration exceeds the limit (constant `LIMITE_DURACAO_AUDIO_SEGUNDOS = 7200`), use the `setError` that already exists in the comp to show a clear message, e.g.: "This audio is X hours long. The current limit is 2 hours." and do not set `audioFile`.
+2. Replicate the same validation in [BulkReportCreatePage.tsx:104](fe/src/presentation/pages/ReportManagement/BulkReportCreatePage.tsx:104), inside `handleFilesSelected`, as the batch upload has its own flow and its own `setError`. As it is a batch, the message must indicate which file exceeded the limit.
+3. Extract the logic for reading the duration of the audio file to a shared helper (e.g.: `fe/src/application/helpers/audioDuration.ts`) so as not to duplicate it between the two screens.
+**What to evaluate on the be (defense in depth):**
+4. The fe can be bypassed (direct upload via API). If you want to really shield it, add a second check in [ReportUseCase.java:742](be/src/main/java/com/gume/sonar/application/usecase/report/ReportUseCase.java:742), reusing the `audioDuration` field that already comes from `transcriptionDto.getAudioDuration()` — if it exceeds the limit, mark the report with a status specific error instead of following complete processing. This is optional for this delivery, but it avoids spending the entire AI chain on an audio that will be rejected anyway (same reasoning as in item 2).
+**Acceptance criteria:** select an audio file longer than 2 hours on both screens (individual and batch creation) and confirm that the message appears without triggering the upload; a 1h59 file passes normally.
 Restrictions
 - Maintain the Clean Architecture standard.
-- Follow the pattern of other classes. or Keep the Layer Architecture default.
+- Follow the pattern of other classes.
+- Maintain the Layer Architecture standard.
 Output
 impl the code
